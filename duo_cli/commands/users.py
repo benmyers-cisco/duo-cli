@@ -8,7 +8,7 @@ from duo_cli.output import render
 
 
 def _admin_client() -> duo_client.Admin:
-    return duo_client.Admin(**get_client_kwargs())
+    return duo_client.Admin(**get_client_kwargs("admin"))
 
 
 @click.group()

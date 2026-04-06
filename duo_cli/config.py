@@ -31,15 +31,23 @@ def save_config(config: dict) -> None:
     path.write_text(json.dumps(config, indent=2) + "\n")
 
 
-def get_client_kwargs() -> dict:
-    """Return kwargs suitable for duo_client constructors."""
+def get_client_kwargs(api: str) -> dict:
+    """Return kwargs for a duo_client constructor.
+
+    Args:
+        api: "admin" or "auth"
+    """
     config = load_config()
-    if not config.get("ikey") or not config.get("skey") or not config.get("host"):
+    section = config.get(api, {})
+
+    # Also check env vars: DUO_ADMIN_IKEY / DUO_AUTH_IKEY, etc.
+    prefix = f"DUO_{api.upper()}_"
+    ikey = os.environ.get(f"{prefix}IKEY") or section.get("ikey")
+    skey = os.environ.get(f"{prefix}SKEY") or section.get("skey")
+    host = os.environ.get(f"{prefix}HOST") or section.get("host")
+
+    if not ikey or not skey or not host:
         raise SystemExit(
-            "duo-cli is not configured. Run: duo-cli configure"
+            f"Duo {api.title()} API is not configured. Run: duo-cli configure --api {api}"
         )
-    return {
-        "ikey": config["ikey"],
-        "skey": config["skey"],
-        "host": config["host"],
-    }
+    return {"ikey": ikey, "skey": skey, "host": host}

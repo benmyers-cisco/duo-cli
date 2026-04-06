@@ -11,7 +11,7 @@ from duo_cli.output import render
 @click.pass_context
 def info(ctx):
     """Show Duo account summary info."""
-    admin = duo_client.Admin(**get_client_kwargs())
+    admin = duo_client.Admin(**get_client_kwargs("admin"))
     info_data = admin.get_info_summary()
     data = [
         {"metric": k, "value": v}

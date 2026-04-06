@@ -26,5 +26,22 @@ cli.add_command(auth)
 cli.add_command(info)
 
 
+def main():
+    try:
+        cli(standalone_mode=False)
+    except click.exceptions.Abort:
+        raise SystemExit(1)
+    except click.ClickException as e:
+        e.show()
+        raise SystemExit(e.exit_code)
+    except RuntimeError as e:
+        # duo_client raises RuntimeError for API errors
+        click.secho(f"Duo API error: {e}", fg="red", err=True)
+        raise SystemExit(1)
+    except Exception as e:
+        click.secho(f"Error: {e}", fg="red", err=True)
+        raise SystemExit(1)
+
+
 if __name__ == "__main__":
-    cli()
+    main()

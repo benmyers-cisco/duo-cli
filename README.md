@@ -18,24 +18,98 @@ A Python CLI wrapper for [Duo Security](https://duo.com) APIs — built for oper
 pip install duo-cli
 ```
 
+Or from source:
+
+```bash
+git clone https://github.com/cmedfisch/duo-cli.git
+cd duo-cli
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+## Configuration
+
+Duo has separate **Admin API** and **Auth API** integrations — you'll configure each one independently.
+
+```bash
+duo-cli configure --api admin
+duo-cli configure --api auth
+```
+
+The interactive setup walks you through where to find credentials in the Duo Admin Panel.
+
+Credentials are stored in `~/.duo-cli/config.json`. You can also use environment variables (useful for CI/agents):
+
+```bash
+# Admin API
+export DUO_ADMIN_IKEY=DIXXXXXXXXXXXXXXXXXX
+export DUO_ADMIN_SKEY=your-secret-key
+export DUO_ADMIN_HOST=api-XXXXXXXX.duosecurity.com
+
+# Auth API
+export DUO_AUTH_IKEY=DIXXXXXXXXXXXXXXXXXX
+export DUO_AUTH_SKEY=your-secret-key
+export DUO_AUTH_HOST=api-XXXXXXXX.duosecurity.com
+```
+
 ## Quick Start
 
 ```bash
-# Configure credentials
-duo-cli configure
+# Verify credentials
+duo-cli auth check
 
-# List users
-duo-cli users list
+# Check if a user is enrolled and see their devices
+duo-cli auth preauth jsmith
 
-# Get a specific user
-duo-cli users get jsmith
-
-# Send a Duo Push (great for agent approval workflows)
+# Send a Duo Push
 duo-cli auth push jsmith --reason "Agent requesting elevated access"
+
+# Send a push with custom info fields
+duo-cli auth push jsmith -p "action=deploy" -p "target=prod-us-east"
+
+# List users (requires Admin API)
+duo-cli users list
 
 # JSON output for piping / agent consumption
 duo-cli -o json users list
 ```
+
+## Commands
+
+### Auth API
+
+| Command | Description |
+|---------|-------------|
+| `duo-cli auth check` | Verify Auth API credentials |
+| `duo-cli auth preauth <username>` | Check if a user can authenticate, list their devices |
+| `duo-cli auth push <username>` | Send a Duo Push |
+| `duo-cli auth sms <username>` | Send SMS passcodes to a user |
+| `duo-cli auth passcode <username> <code>` | Authenticate with a passcode |
+| `duo-cli auth status <txid>` | Check async auth transaction status |
+
+#### Push Options
+
+```bash
+duo-cli auth push <username> [OPTIONS]
+
+  -r, --reason TEXT          Reason shown in the push prompt
+  -p, --pushinfo TEXT        Custom key=value pairs (repeatable)
+  -d, --device TEXT          Device ID or "auto" (default: auto)
+  --type TEXT                Label for Duo auth logs
+  --display-username TEXT    Override displayed username
+  --ipaddr TEXT              Client IP for Duo's risk engine
+  --wait / --no-wait         Wait for response (default: wait)
+```
+
+### Admin API
+
+| Command | Description |
+|---------|-------------|
+| `duo-cli users list` | List all Duo users |
+| `duo-cli users get <username>` | Get user details |
+| `duo-cli users status <username>` | View or change a user's status |
+| `duo-cli info` | Show account summary |
 
 ## AI Agent Integration
 
@@ -51,6 +125,18 @@ The killer feature: any AI agent can request human approval via Duo Push before 
 # If they approve, the agent proceeds. If they deny, the agent stops.
 ```
 
+### Example: Async approval flow
+
+```bash
+# Send push without waiting
+duo-cli auth push jsmith --reason "Approve deploy" --no-wait
+# Output: Push sent. Transaction ID: abc123
+
+# Poll for result
+duo-cli auth status abc123
+# Output: Status: allow
+```
+
 ### Example: LangChain Tool
 
 ```python
@@ -59,24 +145,11 @@ from langchain.tools import ShellTool
 shell = ShellTool()
 
 # Agent decides it needs approval before a destructive action
-result = shell.run("duo-cli auth push jsmith --reason 'Delete staging environment' --wait")
+result = shell.run("duo-cli auth push jsmith --reason 'Delete staging environment'")
 if "allow" in result.lower():
     # proceed with the action
     ...
 ```
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `duo-cli configure` | Set up API credentials |
-| `duo-cli users list` | List all Duo users |
-| `duo-cli users get <username>` | Get user details |
-| `duo-cli users status <username>` | View/change user status |
-| `duo-cli auth check` | Verify API credentials |
-| `duo-cli auth push <username>` | Send a Duo Push |
-| `duo-cli auth status <txid>` | Check async auth status |
-| `duo-cli info` | Show account summary |
 
 ## Output Formats
 
@@ -84,6 +157,7 @@ All commands support `--output json` for machine-readable output:
 
 ```bash
 duo-cli -o json users list | jq '.[].username'
+duo-cli -o json auth preauth jsmith | jq '.devices'
 ```
 
 ## Built On

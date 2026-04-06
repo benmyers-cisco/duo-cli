@@ -19,11 +19,11 @@ def _isolate_config(tmp_path, monkeypatch):
 
 class TestLoadSave:
     def test_save_and_load(self):
-        save_config({"admin": {"ikey": "DI123", "skey": "abc", "host": "api-test.duosecurity.com"}})
+        save_config({"auth": {"ikey": "DI123", "skey": "abc", "host": "api-test.duosecurity.com"}})
         loaded = load_config()
-        assert loaded["admin"]["ikey"] == "DI123"
-        assert loaded["admin"]["skey"] == "abc"
-        assert loaded["admin"]["host"] == "api-test.duosecurity.com"
+        assert loaded["auth"]["ikey"] == "DI123"
+        assert loaded["auth"]["skey"] == "abc"
+        assert loaded["auth"]["host"] == "api-test.duosecurity.com"
 
     def test_load_missing_returns_empty(self, tmp_path, monkeypatch):
         monkeypatch.setenv("DUO_CLI_CONFIG", str(tmp_path / "nope.json"))
@@ -43,7 +43,6 @@ class TestLoadSave:
 
     def test_round_trip_all_api_sections(self):
         config = {
-            "admin": {"ikey": "DI_ADMIN", "skey": "sk_admin", "host": "api-admin.duo.com"},
             "auth": {"ikey": "DI_AUTH", "skey": "sk_auth", "host": "api-auth.duo.com"},
             "universal": {
                 "client_id": "DI_UNI",
@@ -59,26 +58,19 @@ class TestLoadSave:
 class TestGetClientKwargs:
     def test_loads_from_config_file(self):
         save_config({
-            "admin": {"ikey": "DI_A", "skey": "SK_A", "host": "api-a.duo.com"},
-        })
-        result = get_client_kwargs("admin")
-        assert result == {"ikey": "DI_A", "skey": "SK_A", "host": "api-a.duo.com"}
-
-    def test_loads_auth_section(self):
-        save_config({
-            "auth": {"ikey": "DI_AUTH", "skey": "SK_AUTH", "host": "api-auth.duo.com"},
+            "auth": {"ikey": "DI_A", "skey": "SK_A", "host": "api-a.duo.com"},
         })
         result = get_client_kwargs("auth")
-        assert result == {"ikey": "DI_AUTH", "skey": "SK_AUTH", "host": "api-auth.duo.com"}
+        assert result == {"ikey": "DI_A", "skey": "SK_A", "host": "api-a.duo.com"}
 
     def test_env_vars_override_config(self, monkeypatch):
         save_config({
-            "admin": {"ikey": "file_ikey", "skey": "file_skey", "host": "file_host"},
+            "auth": {"ikey": "file_ikey", "skey": "file_skey", "host": "file_host"},
         })
-        monkeypatch.setenv("DUO_ADMIN_IKEY", "env_ikey")
-        monkeypatch.setenv("DUO_ADMIN_SKEY", "env_skey")
-        monkeypatch.setenv("DUO_ADMIN_HOST", "env_host")
-        result = get_client_kwargs("admin")
+        monkeypatch.setenv("DUO_AUTH_IKEY", "env_ikey")
+        monkeypatch.setenv("DUO_AUTH_SKEY", "env_skey")
+        monkeypatch.setenv("DUO_AUTH_HOST", "env_host")
+        result = get_client_kwargs("auth")
         assert result == {"ikey": "env_ikey", "skey": "env_skey", "host": "env_host"}
 
     def test_env_vars_partial_override(self, monkeypatch):
@@ -93,25 +85,29 @@ class TestGetClientKwargs:
         assert result["host"] == "file_host"
 
     def test_env_vars_only_no_config(self, monkeypatch):
-        monkeypatch.setenv("DUO_ADMIN_IKEY", "env_ikey")
-        monkeypatch.setenv("DUO_ADMIN_SKEY", "env_skey")
-        monkeypatch.setenv("DUO_ADMIN_HOST", "env_host")
-        result = get_client_kwargs("admin")
+        monkeypatch.setenv("DUO_AUTH_IKEY", "env_ikey")
+        monkeypatch.setenv("DUO_AUTH_SKEY", "env_skey")
+        monkeypatch.setenv("DUO_AUTH_HOST", "env_host")
+        result = get_client_kwargs("auth")
         assert result == {"ikey": "env_ikey", "skey": "env_skey", "host": "env_host"}
 
-    def test_missing_config_exits(self):
-        with pytest.raises(SystemExit, match="duo-cli configure --api admin"):
-            get_client_kwargs("admin")
+    def test_missing_config_exits(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DUO_CLI_CONFIG", str(tmp_path / "empty" / "config.json"))
+        monkeypatch.delenv("DUO_AUTH_IKEY", raising=False)
+        monkeypatch.delenv("DUO_AUTH_SKEY", raising=False)
+        monkeypatch.delenv("DUO_AUTH_HOST", raising=False)
+        with pytest.raises(SystemExit, match="duo-cli configure --api auth"):
+            get_client_kwargs("auth")
 
     def test_partial_config_exits(self):
-        save_config({"admin": {"ikey": "DI_A", "skey": "SK_A"}})  # missing host
-        with pytest.raises(SystemExit, match="duo-cli configure --api admin"):
-            get_client_kwargs("admin")
+        save_config({"auth": {"ikey": "DI_A", "skey": "SK_A"}})  # missing host
+        with pytest.raises(SystemExit, match="duo-cli configure --api auth"):
+            get_client_kwargs("auth")
 
     def test_empty_string_values_treated_as_missing(self):
-        save_config({"admin": {"ikey": "", "skey": "SK", "host": "h"}})
+        save_config({"auth": {"ikey": "", "skey": "SK", "host": "h"}})
         with pytest.raises(SystemExit):
-            get_client_kwargs("admin")
+            get_client_kwargs("auth")
 
 
 class TestGetUniversalKwargs:
@@ -149,7 +145,6 @@ class TestGetUniversalKwargs:
         }
 
     def test_missing_config_exits(self, tmp_path, monkeypatch):
-        # Point to a guaranteed-empty config and clear env vars
         monkeypatch.setenv("DUO_CLI_CONFIG", str(tmp_path / "empty" / "config.json"))
         monkeypatch.delenv("DUO_UNIVERSAL_CLIENT_ID", raising=False)
         monkeypatch.delenv("DUO_UNIVERSAL_CLIENT_SECRET", raising=False)

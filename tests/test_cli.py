@@ -36,16 +36,6 @@ class TestTopLevel:
 
 
 class TestConfigure:
-    def test_configure_admin_noninteractive(self, runner):
-        result = runner.invoke(cli, [
-            "configure", "--api", "admin",
-            "--ikey", "DITEST123456789012",
-            "--skey", "testsecret",
-            "--host", "api-test.duosecurity.com",
-        ])
-        assert result.exit_code == 0
-        assert "Admin API configuration saved" in result.output
-
     def test_configure_auth_noninteractive(self, runner):
         result = runner.invoke(cli, [
             "configure", "--api", "auth",
@@ -66,20 +56,20 @@ class TestConfigure:
         assert result.exit_code == 0
         assert "Universal API configuration saved" in result.output
 
-    def test_configure_admin_interactive(self, runner):
-        result = runner.invoke(cli, ["configure"], input="admin\nDIKEY123\nsecret\napi-host.duo.com\n")
+    def test_configure_auth_interactive(self, runner):
+        result = runner.invoke(cli, ["configure"], input="auth\nDIKEY123\nsecret\napi-host.duo.com\n")
         assert result.exit_code == 0
-        assert "Admin API configuration saved" in result.output
+        assert "Auth API configuration saved" in result.output
 
     def test_configure_universal_interactive(self, runner):
         result = runner.invoke(cli, ["configure"], input="universal\nCLIENTID12345678901\nsecret\napi-host.duo.com\n")
         assert result.exit_code == 0
         assert "Universal API configuration saved" in result.output
 
-    def test_configure_shows_setup_help_admin(self, runner):
-        result = runner.invoke(cli, ["configure", "--api", "admin"],
+    def test_configure_shows_setup_help_auth(self, runner):
+        result = runner.invoke(cli, ["configure", "--api", "auth"],
                                input="DIKEY123\nsecret\napi-host.duo.com\n")
-        assert "Admin API" in result.output
+        assert "Auth API" in result.output
         assert "Protect an Application" in result.output
 
     def test_configure_shows_setup_help_universal(self, runner):
@@ -90,7 +80,7 @@ class TestConfigure:
 
     def test_configure_skips_help_when_noninteractive(self, runner):
         result = runner.invoke(cli, [
-            "configure", "--api", "admin",
+            "configure", "--api", "auth",
             "--ikey", "DI123", "--skey", "sk", "--host", "h",
         ])
         assert "Protect an Application" not in result.output
@@ -266,147 +256,3 @@ class TestAuthCommands:
 
         result = runner.invoke(cli, ["auth", "push", "baduser"])
         assert result.exit_code != 0
-
-
-class TestUserCommands:
-    def _setup_admin_config(self, runner):
-        runner.invoke(cli, [
-            "configure", "--api", "admin",
-            "--ikey", "DITEST", "--skey", "SKTEST", "--host", "api-test.duo.com",
-        ])
-
-    @patch("duo_cli.commands.users.duo_client.Admin")
-    def test_users_list(self, mock_admin_cls, runner):
-        self._setup_admin_config(runner)
-        mock_client = MagicMock()
-        mock_client.get_users.return_value = [
-            {"user_id": "U1", "username": "alice", "email": "alice@example.com",
-             "status": "active", "last_login": "2025-01-01"},
-            {"user_id": "U2", "username": "bob", "email": "bob@example.com",
-             "status": "active", "last_login": "2025-01-02"},
-        ]
-        mock_admin_cls.return_value = mock_client
-
-        result = runner.invoke(cli, ["users", "list"])
-        assert result.exit_code == 0
-        assert "alice" in result.output
-        assert "bob" in result.output
-
-    @patch("duo_cli.commands.users.duo_client.Admin")
-    def test_users_list_json(self, mock_admin_cls, runner):
-        self._setup_admin_config(runner)
-        mock_client = MagicMock()
-        mock_client.get_users.return_value = [
-            {"user_id": "U1", "username": "alice", "email": "a@b.com",
-             "status": "active", "last_login": ""},
-        ]
-        mock_admin_cls.return_value = mock_client
-
-        result = runner.invoke(cli, ["-o", "json", "users", "list"])
-        assert result.exit_code == 0
-        data = json.loads(result.output)
-        assert data[0]["username"] == "alice"
-
-    @patch("duo_cli.commands.users.duo_client.Admin")
-    def test_users_list_limit(self, mock_admin_cls, runner):
-        self._setup_admin_config(runner)
-        mock_client = MagicMock()
-        mock_client.get_users.return_value = [
-            {"user_id": f"U{i}", "username": f"user{i}", "email": "", "status": "active",
-             "last_login": ""}
-            for i in range(50)
-        ]
-        mock_admin_cls.return_value = mock_client
-
-        result = runner.invoke(cli, ["users", "list", "-n", "5"])
-        assert result.exit_code == 0
-        # Should only show 5 users
-        assert "user4" in result.output
-        assert "user5" not in result.output
-
-    @patch("duo_cli.commands.users.duo_client.Admin")
-    def test_users_get(self, mock_admin_cls, runner):
-        self._setup_admin_config(runner)
-        mock_client = MagicMock()
-        mock_client.get_users_by_name.return_value = [
-            {"user_id": "U1", "username": "alice", "email": "a@b.com",
-             "status": "active", "phones": [], "groups": []},
-        ]
-        mock_admin_cls.return_value = mock_client
-
-        result = runner.invoke(cli, ["users", "get", "alice"])
-        assert result.exit_code == 0
-        assert "alice" in result.output
-
-    @patch("duo_cli.commands.users.duo_client.Admin")
-    def test_users_get_not_found(self, mock_admin_cls, runner):
-        self._setup_admin_config(runner)
-        mock_client = MagicMock()
-        mock_client.get_users_by_name.return_value = []
-        mock_admin_cls.return_value = mock_client
-
-        result = runner.invoke(cli, ["users", "get", "nobody"])
-        assert result.exit_code != 0
-        assert "not found" in result.output
-
-    @patch("duo_cli.commands.users.duo_client.Admin")
-    def test_users_status_view(self, mock_admin_cls, runner):
-        self._setup_admin_config(runner)
-        mock_client = MagicMock()
-        mock_client.get_users_by_name.return_value = [
-            {"user_id": "U1", "username": "alice", "status": "active"},
-        ]
-        mock_admin_cls.return_value = mock_client
-
-        result = runner.invoke(cli, ["users", "status", "alice"])
-        assert result.exit_code == 0
-        assert "active" in result.output
-
-    @patch("duo_cli.commands.users.duo_client.Admin")
-    def test_users_status_set(self, mock_admin_cls, runner):
-        self._setup_admin_config(runner)
-        mock_client = MagicMock()
-        mock_client.get_users_by_name.return_value = [
-            {"user_id": "U1", "username": "alice", "status": "active"},
-        ]
-        mock_admin_cls.return_value = mock_client
-
-        result = runner.invoke(cli, ["users", "status", "alice", "--set", "bypass"])
-        assert result.exit_code == 0
-        assert "bypass" in result.output
-        mock_client.update_user.assert_called_once_with("U1", status="bypass")
-
-
-class TestInfoCommand:
-    @patch("duo_cli.commands.info.duo_client.Admin")
-    def test_info(self, mock_admin_cls, runner):
-        runner.invoke(cli, [
-            "configure", "--api", "admin",
-            "--ikey", "DI", "--skey", "SK", "--host", "h",
-        ])
-        mock_client = MagicMock()
-        mock_client.get_info_summary.return_value = {
-            "admin_count": 3,
-            "user_count": 150,
-            "integration_count": 12,
-        }
-        mock_admin_cls.return_value = mock_client
-
-        result = runner.invoke(cli, ["info"])
-        assert result.exit_code == 0
-        assert "150" in result.output
-
-    @patch("duo_cli.commands.info.duo_client.Admin")
-    def test_info_json(self, mock_admin_cls, runner):
-        runner.invoke(cli, [
-            "configure", "--api", "admin",
-            "--ikey", "DI", "--skey", "SK", "--host", "h",
-        ])
-        mock_client = MagicMock()
-        mock_client.get_info_summary.return_value = {"admin_count": 3}
-        mock_admin_cls.return_value = mock_client
-
-        result = runner.invoke(cli, ["-o", "json", "info"])
-        assert result.exit_code == 0
-        data = json.loads(result.output)
-        assert any(row["metric"] == "admin_count" for row in data)

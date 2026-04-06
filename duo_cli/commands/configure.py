@@ -5,15 +5,6 @@ import click
 from duo_cli.config import load_config, save_config
 
 SETUP_HELP = {
-    "admin": (
-        "\n  To get Admin API credentials:\n"
-        "  1. Log into the Duo Admin Panel (admin.duosecurity.com)\n"
-        "  2. Go to Applications > Protect an Application\n"
-        "  3. Search for \"Admin API\" in the application catalog\n"
-        "  4. Click Protect to create the integration\n"
-        "  5. Grant the appropriate permissions (e.g. Grant read resource)\n"
-        "  6. Copy the Integration key, Secret key, and API hostname below\n"
-    ),
     "auth": (
         "\n  To get Auth API credentials:\n"
         "  1. Log into the Duo Admin Panel (admin.duosecurity.com)\n"
@@ -35,19 +26,19 @@ SETUP_HELP = {
     ),
 }
 
-API_CHOICES = click.Choice(["admin", "auth", "universal"])
+API_CHOICES = click.Choice(["auth", "universal"])
 
 
 @click.command()
 @click.option("--api", type=API_CHOICES, default=None,
               help="Which Duo API to configure.")
-@click.option("--ikey", default=None, help="Integration key (admin/auth APIs).")
-@click.option("--skey", default=None, help="Secret key (admin/auth APIs).")
+@click.option("--ikey", default=None, help="Integration key (auth API).")
+@click.option("--skey", default=None, help="Secret key (auth API).")
 @click.option("--client-id", default=None, help="Client ID (universal API).")
 @click.option("--client-secret", default=None, help="Client secret (universal API).")
 @click.option("--host", default=None, help="Duo API hostname.")
 def configure(api, ikey, skey, client_id, client_secret, host):
-    """Set up Duo API credentials (admin, auth, and universal are separate)."""
+    """Set up Duo API credentials (auth and universal are separate)."""
     if not api:
         api = click.prompt("Which API?", type=API_CHOICES)
 

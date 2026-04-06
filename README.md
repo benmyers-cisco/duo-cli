@@ -8,7 +8,7 @@ A Python CLI wrapper for [Duo Security](https://duo.com) APIs — built for oper
 
 `duo-cli` fills that gap:
 
-- **Terminal-first** — `duo-cli users list`, `duo-cli auth push jsmith`
+- **Terminal-first** — `duo-cli auth push jsmith`, `duo-cli universal login jsmith`
 - **AI-agent ready** — any agent that can call shell commands can use Duo (MCP, LangChain, etc.)
 - **Human-in-the-loop** — use `duo-cli auth push` to gate privileged agent actions behind real Duo approval
 
@@ -30,10 +30,9 @@ pip install -e .
 
 ## Configuration
 
-Duo has separate **Admin API**, **Auth API**, and **Universal Prompt (Web SDK)** integrations — configure each one you need:
+Duo has separate **Auth API** and **Universal Prompt (Web SDK)** integrations — configure each one you need:
 
 ```bash
-duo-cli configure --api admin
 duo-cli configure --api auth
 duo-cli configure --api universal
 ```
@@ -43,11 +42,6 @@ The interactive setup walks you through where to find credentials in the Duo Adm
 Credentials are stored in `~/.duo-cli/config.json`. You can also use environment variables (useful for CI/agents):
 
 ```bash
-# Admin API
-export DUO_ADMIN_IKEY=DIXXXXXXXXXXXXXXXXXX
-export DUO_ADMIN_SKEY=your-secret-key
-export DUO_ADMIN_HOST=api-XXXXXXXX.duosecurity.com
-
 # Auth API
 export DUO_AUTH_IKEY=DIXXXXXXXXXXXXXXXXXX
 export DUO_AUTH_SKEY=your-secret-key
@@ -74,11 +68,11 @@ duo-cli auth push jsmith --reason "Agent requesting elevated access"
 # Send a push with custom info fields
 duo-cli auth push jsmith -p "action=deploy" -p "target=prod-us-east"
 
-# List users (requires Admin API)
-duo-cli users list
+# Browser-based auth with full Duo policy enforcement
+duo-cli universal login jsmith
 
 # JSON output for piping / agent consumption
-duo-cli -o json users list
+duo-cli -o json universal login jsmith
 ```
 
 ## Commands
@@ -127,15 +121,6 @@ duo-cli universal login jsmith
 duo-cli -o json universal login jsmith
 ```
 
-### Admin API
-
-| Command | Description |
-|---------|-------------|
-| `duo-cli users list` | List all Duo users |
-| `duo-cli users get <username>` | Get user details |
-| `duo-cli users status <username>` | View or change a user's status |
-| `duo-cli info` | Show account summary |
-
 ## AI Agent Integration
 
 The killer feature: any AI agent can request human approval via Duo Push before taking a privileged action.
@@ -176,15 +161,6 @@ if "allow" in result.lower():
     ...
 ```
 
-## Output Formats
-
-All commands support `--output json` for machine-readable output:
-
-```bash
-duo-cli -o json users list | jq '.[].username'
-duo-cli -o json auth preauth jsmith | jq '.devices'
-```
-
 ## Auth Modes Compared
 
 | | `auth push` | `universal login` |
@@ -197,6 +173,15 @@ duo-cli -o json auth preauth jsmith | jq '.devices'
 | **User interaction** | Phone push only | Full Universal Prompt |
 | **Return value** | allow/deny | Full JWT with auth context |
 | **Best for** | Quick agent approvals | Compliance-sensitive flows |
+
+## Output Formats
+
+All commands support `--output json` for machine-readable output:
+
+```bash
+duo-cli -o json auth preauth jsmith
+duo-cli -o json universal login jsmith
+```
 
 ## Built On
 

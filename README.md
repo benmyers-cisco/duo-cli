@@ -30,11 +30,12 @@ pip install -e .
 
 ## Configuration
 
-Duo has separate **Admin API** and **Auth API** integrations — you'll configure each one independently.
+Duo has separate **Admin API**, **Auth API**, and **Universal Prompt (Web SDK)** integrations — configure each one you need:
 
 ```bash
 duo-cli configure --api admin
 duo-cli configure --api auth
+duo-cli configure --api universal
 ```
 
 The interactive setup walks you through where to find credentials in the Duo Admin Panel.
@@ -51,6 +52,11 @@ export DUO_ADMIN_HOST=api-XXXXXXXX.duosecurity.com
 export DUO_AUTH_IKEY=DIXXXXXXXXXXXXXXXXXX
 export DUO_AUTH_SKEY=your-secret-key
 export DUO_AUTH_HOST=api-XXXXXXXX.duosecurity.com
+
+# Universal Prompt (Web SDK)
+export DUO_UNIVERSAL_CLIENT_ID=DIXXXXXXXXXXXXXXXXXX
+export DUO_UNIVERSAL_CLIENT_SECRET=your-client-secret
+export DUO_UNIVERSAL_HOST=api-XXXXXXXX.duosecurity.com
 ```
 
 ## Quick Start
@@ -100,6 +106,25 @@ duo-cli auth push <username> [OPTIONS]
   --display-username TEXT    Override displayed username
   --ipaddr TEXT              Client IP for Duo's risk engine
   --wait / --no-wait         Wait for response (default: wait)
+```
+
+### Universal Prompt (Web SDK)
+
+| Command | Description |
+|---------|-------------|
+| `duo-cli universal check` | Verify Universal Prompt credentials |
+| `duo-cli universal login <username>` | Authenticate via browser with full Duo policy enforcement |
+
+The `universal login` command opens your browser to the Duo Universal Prompt, spins up a local callback server, and returns the full JWT result including auth context, device info, and user details.
+
+This is the **policy-enforced** flow — trusted devices, allowed networks, remembered devices, and all other Duo policies apply. Unlike `auth push` which calls the Auth API directly, this goes through the same OIDC flow as your SSO apps.
+
+```bash
+# Browser-based auth with full policy enforcement
+duo-cli universal login jsmith
+
+# JSON output returns the full decoded JWT
+duo-cli -o json universal login jsmith
 ```
 
 ### Admin API
@@ -160,8 +185,22 @@ duo-cli -o json users list | jq '.[].username'
 duo-cli -o json auth preauth jsmith | jq '.devices'
 ```
 
+## Auth Modes Compared
+
+| | `auth push` | `universal login` |
+|---|---|---|
+| **Method** | Direct Auth API call | Browser-based OIDC flow |
+| **Duo Policy** | Not enforced | Fully enforced |
+| **Trusted devices** | No | Yes |
+| **Allowed networks** | No | Yes |
+| **Remembered devices** | No | Yes |
+| **User interaction** | Phone push only | Full Universal Prompt |
+| **Return value** | allow/deny | Full JWT with auth context |
+| **Best for** | Quick agent approvals | Compliance-sensitive flows |
+
 ## Built On
 
 - [duo_client_python](https://github.com/duosecurity/duo_client_python) — the official Duo Python SDK
+- [duo_universal_python](https://github.com/duosecurity/duo_universal_python) — Duo Universal Prompt SDK
 - [Click](https://click.palletsprojects.com/) — CLI framework
 - [Rich](https://rich.readthedocs.io/) — beautiful terminal output

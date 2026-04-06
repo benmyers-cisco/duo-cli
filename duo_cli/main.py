@@ -7,6 +7,7 @@ from duo_cli.commands.configure import configure
 from duo_cli.commands.users import users
 from duo_cli.commands.auth import auth
 from duo_cli.commands.info import info
+from duo_cli.commands.universal import universal
 
 
 @click.group()
@@ -24,6 +25,7 @@ cli.add_command(configure)
 cli.add_command(users)
 cli.add_command(auth)
 cli.add_command(info)
+cli.add_command(universal)
 
 
 def main():

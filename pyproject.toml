@@ -14,6 +14,7 @@ authors = [
 ]
 dependencies = [
     "duo-client>=5.0.0",
+    "duo-universal>=2.0.0",
     "click>=8.0",
     "rich>=13.0",
 ]

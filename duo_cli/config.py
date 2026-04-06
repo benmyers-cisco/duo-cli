@@ -51,3 +51,23 @@ def get_client_kwargs(api: str) -> dict:
             f"Duo {api.title()} API is not configured. Run: duo-cli configure --api {api}"
         )
     return {"ikey": ikey, "skey": skey, "host": host}
+
+
+def get_universal_kwargs() -> dict:
+    """Return kwargs for duo_universal.Client.
+
+    Uses the 'universal' config section or DUO_UNIVERSAL_* env vars.
+    The universal API uses client_id/client_secret instead of ikey/skey.
+    """
+    config = load_config()
+    section = config.get("universal", {})
+
+    client_id = os.environ.get("DUO_UNIVERSAL_CLIENT_ID") or section.get("client_id")
+    client_secret = os.environ.get("DUO_UNIVERSAL_CLIENT_SECRET") or section.get("client_secret")
+    host = os.environ.get("DUO_UNIVERSAL_HOST") or section.get("host")
+
+    if not client_id or not client_secret or not host:
+        raise SystemExit(
+            "Duo Universal Prompt is not configured. Run: duo-cli configure --api universal"
+        )
+    return {"client_id": client_id, "client_secret": client_secret, "host": host}

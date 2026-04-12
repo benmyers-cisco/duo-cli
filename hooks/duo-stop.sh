@@ -20,7 +20,7 @@ import json, sys
 project = sys.argv[1]
 print(json.dumps({
     'chat_id': sys.argv[2],
-    'text': '\u2705 ' + project + ' — ready for next prompt'
+    'text': '\u2753 ' + project + ' — ready for next prompt'
 }))
 " "$PROJECT" "$TELEGRAM_CHAT_ID" 2>/dev/null) || exit 0
 

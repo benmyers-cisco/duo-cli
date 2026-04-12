@@ -28,9 +28,9 @@ deny() {
   exit 0
 }
 
-defer() {
+ask() {
   rm -f "$PENDING_FILE" "$APPROVE_FILE" "$DENY_FILE"
-  echo '{}'
+  echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask", "permissionDecisionReason": "'"$1"'"}}'
   exit 0
 }
 
@@ -97,6 +97,6 @@ elif [ "$EXIT_CODE" -eq 1 ]; then
   deny "Telegram denied"
 else
   # Telegram timed out or unavailable — show terminal prompt
-  echo "$(date '+%H:%M:%S') Telegram unavailable — deferring to terminal prompt" >> "$LOG"
-  defer
+  echo "$(date '+%H:%M:%S') Telegram unavailable — asking via terminal prompt" >> "$LOG"
+  ask "Telegram timed out"
 fi

@@ -16,7 +16,6 @@ LOG="/tmp/duo-bg-push.log"
 PENDING_FILE="/tmp/claude-pending-approval"
 APPROVE_FILE="/tmp/claude-approve"
 DENY_FILE="/tmp/claude-deny"
-
 allow() {
   rm -f "$PENDING_FILE" "$APPROVE_FILE" "$DENY_FILE"
   echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow", "permissionDecisionReason": "'"$1"'"}}'
@@ -58,7 +57,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   esac
 fi
 
-# Build a human-readable description of what's being requested
+# Build a human-readable description
 case "$TOOL_NAME" in
   Bash)
     CMD=$(echo "$PAYLOAD" | python3 -c "import sys,json; print(json.load(sys.stdin).get('tool_input',{}).get('command','unknown'))" 2>/dev/null)
@@ -86,16 +85,17 @@ rm -f "$APPROVE_FILE" "$DENY_FILE"
 TELEGRAM_SCRIPT="/Users/benmyers/duo-cli/hooks/telegram-approval.sh"
 echo "$(date '+%H:%M:%S') Sending Telegram approval: $REASON" >> "$LOG"
 
-if "$TELEGRAM_SCRIPT" "$REASON"; then
+PROJECT=$(basename "$PWD")
+"$TELEGRAM_SCRIPT" "$REASON" "$PROJECT"
+EXIT_CODE=$?
+
+if [ "$EXIT_CODE" -eq 0 ]; then
   echo "$(date '+%H:%M:%S') Telegram approved" >> "$LOG"
   allow "Telegram approved"
+elif [ "$EXIT_CODE" -eq 1 ]; then
+  echo "$(date '+%H:%M:%S') Telegram denied" >> "$LOG"
+  deny "Telegram denied"
 else
-  EXIT_CODE=$?
-  if [ "$EXIT_CODE" -eq 1 ]; then
-    echo "$(date '+%H:%M:%S') Telegram denied" >> "$LOG"
-    deny "Telegram denied"
-  fi
-
   # Telegram timed out or unavailable — show terminal prompt
   echo "$(date '+%H:%M:%S') Telegram unavailable — deferring to terminal prompt" >> "$LOG"
   defer

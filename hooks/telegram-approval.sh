@@ -25,19 +25,23 @@ POLL_TIMEOUT=180  # 3 minutes
 OFFSET_FILE="/tmp/telegram-bot-offset"
 
 REASON="${1:-unknown}"
+PROJECT="${2:-unknown}"
 
 # Send message with inline keyboard
 BODY=$("$PYTHON" -c "
 import json, sys
+reason = sys.argv[1]
+project = sys.argv[2]
+buttons = [[
+    {'text':'\u2705 Approve','callback_data':'approve'},
+    {'text':'\u274c Deny','callback_data':'deny'}
+]]
 print(json.dumps({
-    'chat_id': sys.argv[1],
-    'text': '\U0001f510 Claude Code Permission Request\n\n' + sys.argv[2],
-    'reply_markup': {'inline_keyboard':[[
-        {'text':'\u2705 Approve','callback_data':'approve'},
-        {'text':'\u274c Deny','callback_data':'deny'}
-    ]]}
+    'chat_id': sys.argv[3],
+    'text': '\U0001f4c1 ' + project + '\n\n' + reason,
+    'reply_markup': {'inline_keyboard': buttons}
 }))
-" "$TELEGRAM_CHAT_ID" "$REASON" 2>/dev/null) || { echo "Failed to build JSON" >&2; exit 2; }
+" "$REASON" "$PROJECT" "$TELEGRAM_CHAT_ID" 2>/dev/null) || { echo "Failed to build JSON" >&2; exit 2; }
 
 RESPONSE=$(curl -s --max-time 10 -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
   -H "Content-Type: application/json" \

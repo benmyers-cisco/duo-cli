@@ -47,14 +47,77 @@ case "$TOOL_NAME" in
     ;;
 esac
 
-# Skip harmless Bash commands
-if [ "$TOOL_NAME" = "Bash" ]; then
-  BASH_CMD=$(echo "$PAYLOAD" | python3 -c "import sys,json; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))" 2>/dev/null)
-  case "$BASH_CMD" in
-    rm\ -f\ /tmp/*|cat\ /tmp/*|ls\ *|ps\ *|date\ *|pwd|whoami|which\ *)
-      allow "Harmless command: $BASH_CMD"
-      ;;
-  esac
+# Check if the tool call matches any allowed permission in settings files
+ALLOWED=$(echo "$PAYLOAD" | python3 -c "
+import sys, json, os, re, fnmatch
+
+payload = json.load(sys.stdin)
+tool = payload.get('tool_name', '')
+tool_input = payload.get('tool_input', {})
+
+# Load allow lists from both settings files
+allow_patterns = []
+for path in [
+    os.path.expanduser('~/.claude/settings.json'),
+    os.path.expanduser('~/.claude/settings.local.json'),
+]:
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        allow_patterns.extend(data.get('permissions', {}).get('allow', []))
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+def matches(pattern):
+    # Exact tool name match (e.g. 'Agent', 'WebFetch')
+    if pattern == tool:
+        return True
+
+    # Pattern with qualifier: ToolName(qualifier)
+    m = re.match(r'^(\w+)\((.+)\)$', pattern)
+    if not m:
+        return False
+    pat_tool, qualifier = m.group(1), m.group(2)
+    if pat_tool != tool:
+        return False
+
+    if tool == 'Bash':
+        cmd = tool_input.get('command', '')
+        if qualifier.endswith(':*'):
+            prefix = qualifier[:-2]
+            if cmd == prefix or cmd.startswith(prefix + ' ') or cmd.startswith(prefix + '\n'):
+                return True
+        else:
+            if cmd == qualifier:
+                return True
+    elif tool == 'WebFetch':
+        url = tool_input.get('url', '')
+        if qualifier.startswith('domain:'):
+            domain = qualifier[7:]
+            if domain in url:
+                return True
+        elif url == qualifier:
+            return True
+    elif tool == 'Read':
+        file_path = tool_input.get('file_path', '')
+        # Convert permission glob (e.g. //tmp/**) to fnmatch pattern
+        pat = qualifier.lstrip('/')
+        if fnmatch.fnmatch(file_path, '/' + pat):
+            return True
+    elif tool == 'Skill':
+        skill = tool_input.get('skillName', '')
+        if qualifier == skill:
+            return True
+    else:
+        # Generic qualifier match for other tools (e.g. mcp tools)
+        return False
+    return False
+
+print('yes' if any(matches(p) for p in allow_patterns) else 'no')
+" 2>/dev/null)
+
+if [ "$ALLOWED" = "yes" ]; then
+  allow "Matched settings allow pattern"
 fi
 
 # Build a human-readable description

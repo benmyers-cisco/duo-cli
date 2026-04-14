@@ -3,19 +3,23 @@
 #
 # Flow:
 #   1. Skip read-only and harmless tools
-#   2. Send Telegram message with Approve/Deny buttons
-#   3. If approved/denied via Telegram, return result
-#   4. If Telegram times out (3 min), defer to terminal prompt
+#   2. Check if Telegram approvals are paused (global pause file)
+#   3. Send Telegram message with Approve/Deny buttons
+#   4. If approved/denied via Telegram, return result
+#   5. If Telegram times out (3 min), defer to terminal prompt
 #
 # State files:
 #   /tmp/claude-approve  — written by Telegram script on approve
 #   /tmp/claude-deny     — written by Telegram script on deny
 #   /tmp/duo-bg-push.log — debug log
+#   /tmp/telegram-pause-until — contains unix timestamp; skips Telegram while active
 LOG="/tmp/duo-bg-push.log"
 
 PENDING_FILE="/tmp/claude-pending-approval"
 APPROVE_FILE="/tmp/claude-approve"
 DENY_FILE="/tmp/claude-deny"
+PAUSE_FILE="/tmp/telegram-pause-until"
+
 allow() {
   rm -f "$PENDING_FILE" "$APPROVE_FILE" "$DENY_FILE"
   echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow", "permissionDecisionReason": "'"$1"'"}}'
@@ -34,7 +38,7 @@ ask() {
   exit 0
 }
 
-# Read JSON payload from stdin
+# Read JSON payload from stdin (once)
 PAYLOAD=$(cat)
 
 # Extract tool name
@@ -98,11 +102,14 @@ def matches(pattern):
                 return True
         elif url == qualifier:
             return True
-    elif tool == 'Read':
+    elif tool in ('Read', 'Edit', 'Write'):
         file_path = tool_input.get('file_path', '')
         # Convert permission glob (e.g. //tmp/**) to fnmatch pattern
         pat = qualifier.lstrip('/')
         if fnmatch.fnmatch(file_path, '/' + pat):
+            return True
+        # Also match exact paths
+        if file_path == qualifier:
             return True
     elif tool == 'Skill':
         skill = tool_input.get('skillName', '')
@@ -118,6 +125,27 @@ print('yes' if any(matches(p) for p in allow_patterns) else 'no')
 
 if [ "$ALLOWED" = "yes" ]; then
   allow "Matched settings allow pattern"
+fi
+
+# Check if user is in a Webex meeting — skip Telegram, use terminal prompt
+WEBEX_CHECK="/Users/benmyers/Projects/telegram-notify/scripts/check_webex_meeting.py"
+PYTHON312="/opt/homebrew/opt/python@3.12/bin/python3.12"
+if [ -f "$WEBEX_CHECK" ] && "$PYTHON312" "$WEBEX_CHECK" >/dev/null 2>&1; then
+  echo "$(date '+%H:%M:%S') In Webex meeting — asking via terminal" >> "$LOG"
+  ask "In Webex meeting"
+fi
+
+# Check if Telegram approvals are paused
+if [ -f "$PAUSE_FILE" ]; then
+  PAUSE_UNTIL=$(cat "$PAUSE_FILE" 2>/dev/null)
+  NOW=$(date +%s)
+  if [ "$NOW" -lt "$PAUSE_UNTIL" ] 2>/dev/null; then
+    echo "$(date '+%H:%M:%S') Telegram paused — asking via terminal" >> "$LOG"
+    ask "Telegram paused until $(date -r "$PAUSE_UNTIL" '+%H:%M')"
+  else
+    # Pause expired — clean up
+    rm -f "$PAUSE_FILE"
+  fi
 fi
 
 # Build a human-readable description

@@ -3,10 +3,10 @@
 #
 # Flow:
 #   1. Skip read-only and harmless tools
-#   2. Check if Telegram approvals are paused (global pause file)
-#   3. Send Telegram message with Approve/Deny buttons
-#   4. If approved/denied via Telegram, return result
-#   5. If Telegram times out (3 min), defer to terminal prompt
+#   2. Check if approvals are paused (global pause file)
+#   3. Send Slack message with Approve/Deny buttons
+#   4. If approved/denied via Slack, return result
+#   5. If Slack times out, defer to terminal prompt
 #
 # State files:
 #   /tmp/claude-approve  — written by Telegram script on approve
@@ -135,13 +135,13 @@ if [ -f "$WEBEX_CHECK" ] && "$PYTHON312" "$WEBEX_CHECK" >/dev/null 2>&1; then
   ask "In Webex meeting"
 fi
 
-# Check if Telegram approvals are paused
+# Check if approvals are paused
 if [ -f "$PAUSE_FILE" ]; then
   PAUSE_UNTIL=$(cat "$PAUSE_FILE" 2>/dev/null)
   NOW=$(date +%s)
   if [ "$NOW" -lt "$PAUSE_UNTIL" ] 2>/dev/null; then
-    echo "$(date '+%H:%M:%S') Telegram paused — asking via terminal" >> "$LOG"
-    ask "Telegram paused until $(date -r "$PAUSE_UNTIL" '+%H:%M')"
+    echo "$(date '+%H:%M:%S') Approvals paused — asking via terminal" >> "$LOG"
+    ask "Approvals paused until $(date -r "$PAUSE_UNTIL" '+%H:%M')"
   else
     # Pause expired — clean up
     rm -f "$PAUSE_FILE"
@@ -171,23 +171,29 @@ case "$TOOL_NAME" in
     ;;
 esac
 
-# Send Telegram approval request immediately
+# Check if the Slack bot is running (needed to handle button callbacks)
+if ! pgrep -f "Python bot\.py" > /dev/null 2>&1; then
+  echo "$(date '+%H:%M:%S') Slack bot not running — asking via terminal" >> "$LOG"
+  ask "Slack bot not running"
+fi
+
+# Send Slack approval request
 rm -f "$APPROVE_FILE" "$DENY_FILE"
-TELEGRAM_SCRIPT="/Users/benmyers/duo-cli/hooks/telegram-approval.sh"
-echo "$(date '+%H:%M:%S') Sending Telegram approval: $REASON" >> "$LOG"
+SLACK_SCRIPT="/Users/benmyers/duo-cli/hooks/slack-approval.sh"
+echo "$(date '+%H:%M:%S') Sending Slack approval: $REASON" >> "$LOG"
 
 PROJECT=$(basename "$PWD")
-"$TELEGRAM_SCRIPT" "$REASON" "$PROJECT"
+"$SLACK_SCRIPT" "$REASON" "$PROJECT"
 EXIT_CODE=$?
 
 if [ "$EXIT_CODE" -eq 0 ]; then
-  echo "$(date '+%H:%M:%S') Telegram approved" >> "$LOG"
-  allow "Telegram approved"
+  echo "$(date '+%H:%M:%S') Slack approved" >> "$LOG"
+  allow "Slack approved"
 elif [ "$EXIT_CODE" -eq 1 ]; then
-  echo "$(date '+%H:%M:%S') Telegram denied" >> "$LOG"
-  deny "Telegram denied"
+  echo "$(date '+%H:%M:%S') Slack denied" >> "$LOG"
+  deny "Slack denied"
 else
-  # Telegram timed out or unavailable — show terminal prompt
-  echo "$(date '+%H:%M:%S') Telegram unavailable — asking via terminal prompt" >> "$LOG"
-  ask "Telegram timed out"
+  # Slack timed out or unavailable — show terminal prompt
+  echo "$(date '+%H:%M:%S') Slack unavailable — asking via terminal prompt" >> "$LOG"
+  ask "Slack timed out"
 fi
